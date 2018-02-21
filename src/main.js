@@ -1,23 +1,11 @@
+//  @flow
+// import pipe from './Pipe';
 import http from 'http';
-import fs from 'fs';
 import path from 'path';
+import fs from 'fs';
 import url from 'url';
-let server = http.createServer();
 
-// fs.readFile('./assets/img/goo.png', (err, data) => {
-//   if (err) {
-//     throw err;
-//   }
-//   console.log('data gambar !!', data);
-// });
-
-let dummyData = {
-  Product: [
-    {id: 1, name: 'banana', price: '100'},
-    {id: 3, name: 'apple', price: '20000'},
-    {id: 2, name: 'blackberry', price: '10'},
-  ],
-};
+import Router from './Router';
 
 let supportedType = {
   mp4: 'video/mp4',
@@ -27,21 +15,23 @@ let supportedType = {
   jpeg: 'image/jpeg',
   txt: 'plain/text',
 };
+let server = http.createServer();
+let router = new Router();
 
-function serveNotFoundPage(request, response) {
+function serveNotFoundPage(request: Object, response: Object) {
   response.statusCode = 404;
   response.setHeader('Content-Type', 'text/html');
   response.end(`<h1>Bad Request !</h1>`);
 }
-function serveErrorPage(request, response, error) {
+function serveErrorPage(request: Object, response: Object, error: Error) {
   response.statusCode = 404;
   response.setHeader('Content-Type', 'text/html');
-  response.end(`<h1>${error}</h1>`);
+  response.end(`<h1>${error.toString()}</h1>`);
 }
-function serveAsset(request, response, filePath) {
+function serveAsset(request: Object, response: Object, filePath: string) {
   let readStream = fs.createReadStream(filePath);
 
-  readStream.on('error', (error) => {
+  readStream.on('error', (error: Error) => {
     serveErrorPage(request, response, error);
   });
 
@@ -50,107 +40,63 @@ function serveAsset(request, response, filePath) {
   readStream.pipe(response);
 
   readStream.on('end', () => {
-    console.log('done!');
+    console.log('serving done!');
     response.end();
   });
 }
 
-function pipe(readStream, writeStream) {
-  let chunkCount = 0;
+router.addRoute('/', ({request, response}) => {
+  let fileHTML = path.join(__dirname, 'index.html');
+  serveAsset(request, response, fileHTML);
+});
 
-  readStream.on('data', (data) => {
-    if (chunkCount === 0) {
-      writeStream.statusCode = 200;
-      writeStream.setHeader('Content-Type', 'video/mp4');
-    }
-    console.log('chunkCount', chunkCount);
+router.addRoute('/assets/:fileName', ({request, response}, fileName) => {
+  let fileExtension = fileName.split('.').pop();
+  if (supportedType[fileExtension]) {
+    response.statusCode = 200;
+    let fileType = supportedType[fileExtension].split('/')[0];
+    response.setHeader('Content-Type', supportedType[fileExtension]);
+    let filePath = path.join(__dirname, '../assets', fileType, fileName);
 
-    chunkCount += 1;
-
-    console.log(`Sending chunk ${chunkCount} @ ${data.length} bytes`);
-    let shouldContinue = writeStream.write(data);
-    if (shouldContinue === false) {
-      console.log('pausing...');
-      readStream.pause();
-      writeStream.once('drain', () => {
-        console.log('Drained..');
-        readStream.resume();
-      });
-    }
-  });
-}
-
-server.on('request', (request, response) => {
-  console.log('request received', request.url);
-
-  if (request.url.startsWith('/assets/')) {
-    let fileName = request.url.split('/').pop();
-    let fileExtension = fileName.split('.').pop();
-    if (supportedType[fileExtension]) {
-      response.statusCode = 200;
-      let fileType = supportedType[fileExtension].split('/')[0];
-      response.setHeader('Content-Type', supportedType[fileExtension]);
-      let filePath = path.join(__dirname, '../assets', fileType, fileName);
-
-      serveAsset(request, response, filePath);
-    } else {
-      serveNotFoundPage(request, response);
-    }
-  } else if (request.url.startsWith('/upload/')) {
-    console.log('METHOD !', request.method);
-    let preFileName = request.url.split('/').pop();
-    let fileName = preFileName.split('.')[0];
-    let dummyVal = url.parse(request.url, true).query.value;
-    console.log('here!!!', dummyVal);
-
-    // let fileName = 'upload';
-    // let fileType = 'text';
-
-    let filePath = path.join(__dirname, '../assets', fileName);
-    // let dummyFilepath = path.join(__dirname, '../assets/image/image.png');
-    // let readStream = fs.createReadStream(dummyFilepath);
-    let writeStreams = fs.createWriteStream(filePath);
-    // dummyVal.pipe(writeStreams);
-    writeStreams.write(dummyVal, () => {
-      response.end();
-    });
-    // writeStreams.on('end', () => {
-    //   response.end();
-    // });
-  } else if (request.url === '/') {
-    let fileHTML = path.join(__dirname, 'index.html');
-    serveAsset(request, response, fileHTML);
+    serveAsset(request, response, filePath);
   } else {
     serveNotFoundPage(request, response);
   }
+});
 
-  // if (request.url === '/') {
-  //   response.statusCode = 200;
-  //   response.setHeader('Content-Type', 'text/html');
-  //   response.end('<h1>Hello !</h1>');
-  // } else if (request.url === '/api/products') {
-  //   response.statusCode = 200;
-  //   response.setHeader('Content-Type', 'application/json');
-  //   response.write(JSON.stringify(dummyData, null, 1));
-  //   response.end();
-  // } else if (request.url === '/api/video') {
-  //   let filePath = './assets/video/BC4-Day4b.mp4';
-  //   serveAsset(request, response, filePath);
-  // } else if (request.url === '/api/img') {
-  //   fs.readFile('./assets/img/goo.png', (error, data) => {
-  //     if (error) {
-  //       serveErrorPage(request, response, error);
-  //       // throw err;
-  //     } else {
-  //       response.statusCode = 200;
-  //       response.setHeader('Content-Type', 'image/png');
-  //       response.end(data);
-  //       // console.log('data gambar !!', data);
-  //     }
-  //   });
-  // } else {
-  //   serveNotFoundPage(request, response);
-  // }
+router.addRoute('/notFound', ({request, response}) => {
+  serveNotFoundPage(request, response);
+});
+
+router.addRoute('/submit-json', ({request, response}) => {
+  let chunks = [];
+  request.on('data', (chunk) => {
+    chunks.push(chunk);
+  });
+
+  let data;
+  request.on('end', () => {
+    data = Buffer.concat(chunks).toString();
+    console.log('chunk!@@!', JSON.parse(data));
+    response.end();
+  });
+});
+
+server.on('request', (request, response) => {
+  router.handleRequest(request.url, {request, response});
 });
 
 server.listen(8000);
+
+// if (request.url.startsWith('/upload/')) {
+//   console.log('METHOD !', request.method);
+//   let preFileName = request.url.split('/').pop();
+//   let fileName = preFileName.split('.')[0];
+//   let dummyVal = url.parse(request.url, true).query.value;
+//   console.log('here!!!', dummyVal);
+//   let filePath = path.join(__dirname, '../assets', fileName);
+//   let writeStreams = fs.createWriteStream(filePath);
+//   writeStreams.write(dummyVal, () => {
+//     response.end();
+//   });
+// }

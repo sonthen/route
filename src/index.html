@@ -5,11 +5,36 @@
     <title>test</title>
   </head>
   <body>
-    <h1>form upload bpjs</h1>
-    <form class="form-bpjs" action="upload" method="post" enctype="multipart/form-data">
-      <input type="text" name="person" value="">
-      <input type="file" name="avatar" value="">
+    <form id="form" method="POST">
+      <input type="text" name="productName" placeholder="Product Name"><br>
+      <input type="text" name="price" placeholder="Price"><br>
+      <!-- <input id="upload" type="file" name="avatar" value=""> -->
       <button type="submit">submit</button>
     </form>
   </body>
+
+<script>
+let form = document.getElementById('form');
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+  let formMeta = event.target;
+
+  let bodyData = {};
+  for (let form of formMeta) {
+    let {name, value, type} = form;
+    if (type !== 'submit') {
+      bodyData[name] = value;
+    }
+  }
+
+  let json = JSON.stringify(bodyData);
+  fetch('/submit-json', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: json,
+  });
+});
+</script>
 </html>
